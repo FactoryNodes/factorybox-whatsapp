@@ -1,0 +1,20 @@
+{
+  "name": "factorybox-whatsapp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Proceso de WhatsApp de la Factory Box (FactoryNodes): manda los avisos de alarmas por WhatsApp Web con Baileys. Habla con el visor por stdin/stdout, un JSON por línea (NDJSON).",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.22",
+    "pino": "^9.5.0"
+  },
+  "license": "GPL-3.0-or-later",
+  "author": "Vicente Zaragoza Arnau",
+  "scripts": {
+    "start": "node index.js"
+  }
+}
