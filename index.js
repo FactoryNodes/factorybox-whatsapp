@@ -145,6 +145,55 @@ async function borrarSesionContacto(remoteJid) {
     }
 }
 
+// --- Reenviar el mensaje atascado tras resincronizar (2026-11-10) -----
+//
+// Autor (FactoryNodes, 2026-11-10): tras un fallo de sincronización la sesión se arreglaba sola y el SIGUIENTE aviso llegaba bien, pero
+// el que se atascó («Esperando este mensaje…») no llegaba. Cuando un mensaje cruza el umbral de reintentos, después del autoarreglo se
+// manda otra vez como mensaje NUEVO (cifrado con la sesión rehecha), con «↻ » delante (sin idioma) y una sola vez por mensaje. Si el
+// móvil acaba descifrando también el original, llega dos veces: para un aviso de alarma, mejor dos que ninguno. Solo texto (lo que
+// mandan los avisos); un adjunto no se reenvía.
+const REENVIO_ESPERA_MS = 5000;
+const REENVIO_PREFIJO = '↻ ';
+const reenviados = new Set();
+
+// El texto de un mensaje guardado (proto de Baileys): `conversation` o `extendedTextMessage.text`.
+function textoDeMensaje(message) {
+    const texto = message?.conversation ?? message?.extendedTextMessage?.text;
+    return typeof texto === 'string' && texto.length > 0 ? texto : null;
+}
+
+function programarReenvio(key) {
+    if (!key?.id || reenviados.has(key.id) || !key.remoteJid) {
+        return;
+    }
+    const texto = textoDeMensaje(obtenerMensajeEnviado(key.id));
+    if (texto === null) {
+        logDiagnostico(`Reenvío: ${key.id} no es un texto, no se reenvía.`);
+        return;
+    }
+    reenviados.add(key.id);
+    // Con margen para que el autoarreglo termine y el móvil deje de pedir el original
+    setTimeout(async () => {
+        const jid = key.remoteJid;
+        const contenido = texto.startsWith(REENVIO_PREFIJO) ? texto : REENVIO_PREFIJO + texto;
+        try {
+            if (!sock) {
+                throw new Error('sin conexión');
+            }
+            const info = await enviarConUnReintento(jid, { text: contenido });
+            guardarMensajeEnviado(info?.key?.id, info?.message);
+            logDiagnostico(`Reenvío: ${key.id} mandado otra vez a ${jid} tras resincronizar (nuevo ${info?.key?.id}).`);
+            emitir({ evt: 'reenvio', remoteJid: jid, original: key.id, estado: 'enviadoOk' });
+            if (alarmasActivas.delete(jid)) {
+                emitir({ evt: 'alarmaSesion', accion: 'resuelta', remoteJid: jid });
+            }
+        } catch (error) {
+            logDiagnostico(`Reenvío: no se pudo mandar otra vez ${key.id} a ${jid}:`, error?.message ?? error);
+            emitir({ evt: 'reenvio', remoteJid: jid, original: key.id, estado: 'error', detalle: String(error?.message ?? error) });
+        }
+    }, REENVIO_ESPERA_MS);
+}
+
 // Llamar desde `getMessage` en cada reintento ATENDIDO. Al cruzar el umbral
 // para el mismo `key.id`, avisa al lado .NET (evento "detectada", pinta la
 // alarma en rojo) e intenta el autoarreglo — una sola vez por contacto
@@ -159,6 +208,15 @@ function registrarReintentoYAvisarSiSospechoso(key) {
         emitir({ evt: 'alarmaSesion', accion: 'detectada', remoteJid: key.remoteJid });
         logDiagnostico(`Sesión sospechosa con ${key.remoteJid}: ${contador} reintentos para el mismo mensaje (${key.id}).`);
         borrarSesionContacto(key.remoteJid).catch((error) => logDiagnostico('Autoarreglo falló:', error));
+    } else if (contador === UMBRAL_REINTENTOS_SOSPECHOSO) {
+        // Otro mensaje atascado con la alarma del contacto ya activa: la sesión se rehace también, una vez por mensaje (no en bucle), para
+        // que el reenvío no salga por la misma sesión rota
+        logDiagnostico(`Sesión sospechosa con ${key.remoteJid} otra vez: ${contador} reintentos para ${key.id}.`);
+        borrarSesionContacto(key.remoteJid).catch((error) => logDiagnostico('Autoarreglo falló:', error));
+    }
+    // El mensaje atascado, otra vez como nuevo (ver «Reenviar el mensaje atascado»)
+    if (contador === UMBRAL_REINTENTOS_SOSPECHOSO) {
+        programarReenvio(key);
     }
 }
 
