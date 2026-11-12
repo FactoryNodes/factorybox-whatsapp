@@ -12,7 +12,7 @@
     "@whiskeysockets/baileys": "^6.7.22",
     "pino": "^9.5.0"
   },
-  "license": "GPL-3.0-or-later",
+  "license": "MIT",
   "author": "Vicente Zaragoza Arnau",
   "scripts": {
     "start": "node index.js"

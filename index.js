@@ -1,9 +1,8 @@
 // factorybox-whatsapp — proceso de WhatsApp de la Factory Box (FactoryNodes).
 // Copyright (C) 2026 Vicente Zaragoza Arnau
 //
-// Este programa es software libre: puedes redistribuirlo y/o modificarlo según los términos de la GNU General Public
-// License publicada por la Free Software Foundation, versión 3 o (a tu elección) cualquier versión posterior. Se
-// distribuye con la esperanza de que sea útil, pero SIN NINGUNA GARANTÍA. Ver LICENSE.
+// Licencia MIT (ver LICENSE): se puede usar, copiar, cambiar y repartir libremente, SIN NINGUNA GARANTÍA. Hasta el
+// 2026-11-12 se publicó con la GPL 3.0 o posterior, porque llevaba libsignal-node; ahora el cifrado es signal-protocol-mit.
 //
 // Manda los avisos de alarmas de la Factory Box por WhatsApp Web (Baileys). El visor de la caja lo lanza como un proceso
 // aparte y le habla por stdin/stdout, un JSON por línea (NDJSON): comandos send, listarGrupos, desvincular y shutdown;
@@ -57,9 +56,62 @@ const MSGSTORE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 const MSGSTORE_MAX_FICHEROS = 5000;
 const MSGSTORE_PODA_CADA_MS = 6 * 60 * 60 * 1000;
 
-// Silencioso a propósito: el logger por defecto de Baileys escribe en
-// stdout, y ese canal está reservado para nuestros eventos NDJSON.
-const logger = pino({ level: 'silent' });
+// Nunca a stdout: el logger por defecto de Baileys escribe ahí, y ese canal está reservado para nuestros eventos NDJSON.
+// Antes, silencioso del todo. Ahora, solo lo sirve para entender un «Esperando este mensaje» (2026-11-10, autor: «Hazlo»): los reintentos que pide el otro
+// dispositivo (con su número de intento y de qué dispositivo), la sesión nueva que fuerza Baileys para responderlos, los mensajes
+// que no se pudieron descifrar aquí y todo aviso o error de Baileys. Va a stderr con nuestro prefijo, y el visor lo pasa al
+// registro de la caja. Se filtra en `logMethod`, antes de serializar: el resto del nivel debug ni se escribe.
+const BAILEYS_INTERESANTES = [
+    'recv retry request',
+    'forced new session for retry recp',
+    'recv retry request, but message not available',
+    'reached retry limit, clearing',
+    'received unavailable message, acked and requested resend from phone',
+    'already requested resend',
+    'message received while resend requested',
+];
+const NIVEL_AVISO = 40;   // pino: warn
+const NOMBRES_NIVEL = { 20: 'debug', 30: 'info', 40: 'warn', 50: 'error', 60: 'fatal' };
+
+// Lo útil de cada línea, corto: los atributos del recibo (de quién, intento, tipo), la clave del mensaje y el error.
+function resumirBaileys(o) {
+    const partes = [];
+    const attrs = o.attrs ?? o.msgAttrs;
+    if (attrs) {
+        partes.push(`attrs=${JSON.stringify(attrs)}`);
+    }
+    for (const campo of ['key', 'participant', 'sendToAll', 'jid', 'id', 'msgId', 'retryCount', 'messageKey', 'ids']) {
+        if (o[campo] !== undefined) {
+            partes.push(`${campo}=${JSON.stringify(o[campo])}`);
+        }
+    }
+    const error = o.err?.message ?? o.err ?? o.error?.message ?? o.trace?.split('\n')[0];
+    if (error) {
+        partes.push(`error=${String(error)}`);
+    }
+    return partes.join(' ').slice(0, 600);
+}
+
+const logger = pino({
+    level: 'debug',
+    hooks: {
+        logMethod(args, method, level) {
+            const texto = args.find((a) => typeof a === 'string') ?? '';
+            if (level >= NIVEL_AVISO || BAILEYS_INTERESANTES.includes(texto)) {
+                method.apply(this, args);
+            }
+        },
+    },
+}, {
+    write(linea) {
+        try {
+            const o = JSON.parse(linea);
+            console.error(`[factorybox-whatsapp] baileys ${NOMBRES_NIVEL[o.level] ?? o.level}: ${o.msg ?? ''} ${resumirBaileys(o)}`.trimEnd());
+        } catch {
+            // una línea que no es JSON: no se pierde nada importante
+        }
+    },
+});
 
 // El socket activo — cambia en cada reconexión (ver conectar()), así que
 // los manejadores de comando siempre deben leer esta variable, nunca

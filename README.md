@@ -3,14 +3,16 @@
 Proceso de WhatsApp de la **Factory Box** de [FactoryNodes](https://www.factorynodes.com): manda los avisos de alarmas de la
 planta por WhatsApp Web, con [Baileys](https://github.com/WhiskeySockets/Baileys).
 
-Licencia: **GNU GPL 3.0 o posterior** ([LICENSE](LICENSE)). Copyright (C) 2026 Vicente Zaragoza Arnau.
+Licencia: **MIT** ([LICENSE](LICENSE)). Copyright (c) 2026 Vicente Zaragoza Arnau. Hasta el 12 de noviembre de 2026 se publicó con la
+GPL 3.0 o posterior, porque llevaba libsignal-node; desde entonces el cifrado es
+[signal-protocol-mit](signal-protocol-mit), del mismo autor y también MIT.
 
 ## Qué es y qué no es
 
 Es un programa de Node.js independiente. El visor de la Factory Box (software propietario, no incluido aquí) lo lanza
 como un **proceso aparte** y se comunica con él solo por la entrada y la salida estándar, con un mensaje JSON por línea.
 Este repositorio es el código fuente completo de ese proceso, tal como va instalado en la caja
-(`/opt/factorybox/app/whatsapp/`).
+(`/opt/factorybox/app/whatsapp/`), y el de su librería de cifrado (`signal-protocol-mit/`).
 
 ## Cómo funciona
 
@@ -41,12 +43,18 @@ El diagnóstico va por stderr.
 
 ## Dependencias y su código fuente
 
-Las versiones exactas están en [package-lock.json](package-lock.json). Las que se distribuyen con licencias que piden dar
-el código fuente:
+Las versiones exactas están en [package-lock.json](package-lock.json).
+
+**El cifrado.** Baileys pide el paquete `libsignal` (libsignal-node, GPL-3.0) y `npm ci` lo baja. En la Factory Box **no va**: al
+hacer el firmware se quita y en su sitio (`node_modules/libsignal`) se pone [signal-protocol-mit](signal-protocol-mit), que
+ofrece la parte que Baileys usa (X3DH y Double Ratchet, escritos desde las especificaciones públicas de Signal; ver su
+`PROVENANCE.md`). Así lo que lleva la caja no tiene nada GPL. Quien instale las dependencias sin hacer ese cambio tendrá
+libsignal-node y, con ella, las condiciones de la GPL al repartirlo.
+
+La que se distribuye con una licencia que pide dar el código fuente:
 
 | Componente | Versión | Licencia | Código fuente |
 |---|---|---|---|
-| libsignal-node | 6.0.0 (commit `bcea72df9ec34d9d9140ab30619cf479c7c144c7`) | GPL-3.0 | https://github.com/whiskeysockets/libsignal-node/tree/bcea72df9ec34d9d9140ab30619cf479c7c144c7 |
 | libvips (binarios de `@img/sharp-libvips-linux-x64`) | 1.3.2 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips |
 
 El resto (Baileys, pino, protobufjs, ws, axios, sharp…) tienen licencias MIT, BSD, ISC, 0BSD o Apache 2.0; su texto va en
@@ -56,4 +64,8 @@ Para instalar las dependencias igual que en la caja:
 
 ```
 npm ci --omit=dev --os=linux --cpu=x64 --libc=glibc
+(cd signal-protocol-mit && npm ci --omit=dev)
+rm -rf node_modules/libsignal
+mkdir node_modules/libsignal
+cp -r signal-protocol-mit/index.js signal-protocol-mit/src signal-protocol-mit/package.json signal-protocol-mit/LICENSE       signal-protocol-mit/node_modules node_modules/libsignal/
 ```
