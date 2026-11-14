@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import * as ours from '../index.js';
 import { oracle } from './_oracle.js';
 import { makeParty } from './_party.js';
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
+import { oraclePath } from './_oracle.js';
 
 /** A conversation: pre-key messages until the first answer, then normal ones; out of order on both sides. */
 async function conversation(aliceLib, bobLib, options = {}) {
@@ -145,4 +148,35 @@ test('a forged message for an old (closed) receiving chain is rejected', async (
     alice.sessions.set('bob.1', record0);   // an attacker with the old state keeps sending on the old chain
     const old = await alice.send('bob', 'viejo');
     await assert.rejects(bob.receive('alice', old));
+});
+
+test('Baileys 7 reads the identity key of a pre-key message with src/protobufs.js (as with libsignal-node)', async () => {
+    const { PreKeyWhisperMessage, WhisperMessage } = await import('../src/protobufs.js');
+    const alice = makeParty(ours, 'alice'), bob = makeParty(ours, 'bob');
+    await alice.start('bob', bob.bundle());
+    const m = await alice.send('bob', 'hola');
+    assert.equal(m.type, 3);
+    assert.equal(m.body[0] & 0xf, 3);   // version byte, then the protobuf (what Baileys 7 skips with slice(1))
+    const decoded = PreKeyWhisperMessage.decode(m.body.slice(1));
+    assert.equal(decoded.identityKey.length, 33);
+    assert.deepEqual(Buffer.from(decoded.identityKey), Buffer.from(alice.storage.getOurIdentity().pubKey));
+    assert.equal(typeof WhisperMessage.decode, 'function');
+    if (oracle) {
+        const theirs = createRequire(import.meta.url)(join(oraclePath(), 'src', 'protobufs.js'));
+        assert.deepEqual(Buffer.from(theirs.PreKeyWhisperMessage.decode(m.body.slice(1)).identityKey), Buffer.from(decoded.identityKey));
+    }
+});
+
+test('the open session gives the base key and the registration id under libsignal-node names (Baileys 7 getSessionInfo)', async () => {
+    const alice = makeParty(ours, 'alice'), bob = makeParty(ours, 'bob');
+    await alice.start('bob', bob.bundle());
+    const m = await alice.send('bob', 'hola');
+    await bob.receive('alice', m);
+    const aliceOpen = (await alice.storage.loadSession('bob.1')).getOpenSession();
+    const bobOpen = (await bob.storage.loadSession('alice.1')).getOpenSession();
+    assert.equal(aliceOpen.registrationId, bob.storage.getOurRegistrationId());
+    assert.equal(bobOpen.registrationId, alice.storage.getOurRegistrationId());
+    assert.equal(aliceOpen.indexInfo.baseKey.length, 33);
+    assert.deepEqual(Buffer.from(aliceOpen.indexInfo.baseKey), Buffer.from(bobOpen.indexInfo.baseKey));   // the same session on both sides
+    assert.equal(JSON.parse(ours.SessionRecord.deserialize(alice.sessions.get('bob.1')).serialize()).sessions[0].indexInfo, undefined);
 });

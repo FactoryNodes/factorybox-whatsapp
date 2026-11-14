@@ -33,6 +33,7 @@ message fail).
 | X3DH output of 64 bytes (root key ‖ chain key), public keys with a 0x05 type byte | WhatsApp Encryption Overview ("Root Key and Chain Key"); the 0x05 byte is visible in Baileys (`KEY_BUNDLE_TYPE`) |
 | Legacy Curve25519 signatures with the Edwards sign bit in the top bit of the last byte (accepted when verifying) | Public discussion of pre-XEdDSA Curve25519 signatures; accepted only for compatibility |
 | The functions, arguments and storage interface Baileys calls (`SessionCipher.encrypt` → `{ type: 3 | 1, body }`, `crypto.deriveSecrets`, `curve.verifySignature` throwing on failure…) | Baileys' source (MIT): `lib/Signal/libsignal.js`, `lib/Utils/crypto.js`, `lib/Signal/Group/*` |
+| Baileys 7 (0.2.0): the module `libsignal/src/protobufs.js` with `PreKeyWhisperMessage.decode(…).identityKey`, and `indexInfo.baseKey` / `registrationId` on the open session | Baileys 7.0.0-rc14's source (MIT): `lib/Signal/libsignal.js` (`extractIdentityFromPkmsg`, `getSessionInfo`). Only the names Baileys uses; the message fields are the Signal specification's |
 
 ## Dependencies
 

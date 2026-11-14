@@ -97,6 +97,18 @@ class SessionState {
         }, fields);
     }
 
+    /**
+     * libsignal-node's names for two of these fields, which Baileys 7 reads from the open session (getSessionInfo) to notice a stale
+     * session when a message is retried: the session's base key and the other side's registration id. Not stored twice.
+     */
+    get indexInfo() {
+        return { baseKey: this.baseKey };
+    }
+
+    get registrationId() {
+        return this.remoteRegistrationId;
+    }
+
     clone() {
         return SessionState.fromJSON(this.toJSON());
     }

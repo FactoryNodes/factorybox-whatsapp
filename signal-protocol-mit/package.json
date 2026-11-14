@@ -1,6 +1,6 @@
 {
   "name": "signal-protocol-mit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "X3DH and Double Ratchet (Signal protocol) for Node.js, written from the public-domain specifications, MIT licensed. Drop-in for the subset of libsignal-node that Baileys uses.",
   "type": "module",
   "license": "MIT",
@@ -10,7 +10,8 @@
   "exports": {
     ".": "./index.js",
     "./src/crypto.js": "./src/crypto.js",
-    "./src/curve.js": "./src/curve.js"
+    "./src/curve.js": "./src/curve.js",
+    "./src/protobufs.js": "./src/protobufs.js"
   },
   "scripts": { "test": "node --test test/*.test.js" },
   "dependencies": { "@noble/curves": "1.9.7" }
