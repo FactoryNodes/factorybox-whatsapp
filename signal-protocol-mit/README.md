@@ -38,7 +38,13 @@ Install it under the name Baileys imports (`libsignal`), for example with npm ov
 "overrides": { "libsignal": "npm:signal-protocol-mit@0.2.0" }
 ```
 
-or by copying this package into `node_modules/libsignal`.
+or by copying this package into `node_modules/libsignal`. From a local folder or a `.tgz`, add it as a direct dependency named
+`libsignal` and point the override at it: a relative `file:` written inside `overrides` is resolved from Baileys' own folder, not yours.
+
+```json
+"dependencies": { "libsignal": "file:vendor/signal-protocol-mit-0.2.0.tgz" },
+"overrides": { "libsignal": "$libsignal" }
+```
 
 Works with **Baileys 6.7** (6.7.22–6.7.24, which import `libsignal`, `/src/curve.js` and `/src/crypto.js`) and **Baileys 7.0**
 (7.0.0-rc14, which also imports `/src/protobufs.js` and reads `indexInfo` / `registrationId`; from 0.2.0).
